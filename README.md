@@ -6,3 +6,9 @@ QWC demo DB
 ===========
 
 Demo database for QWC docker.
+
+Understanding
+-------------
+
+See the https://github.com/qwc-services/qwc-db-setup project
+upon which this project and docker container image is based.
