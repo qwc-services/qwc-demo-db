@@ -1,9 +1,5 @@
 # QWC Services DB with demo data
 #
-# This is mostly the same as Dockerfile.qwc-base-db and setup-external-db.sh
-#
-#                     PLEASE KEEP IN SYNC
-#
 # self contained container:
 # - includes postgres server with postgis
 # - config-db is set up
