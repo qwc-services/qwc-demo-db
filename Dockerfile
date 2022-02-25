@@ -5,7 +5,7 @@
 # - config-db is set up
 # - demo data are in the DB
 #
-FROM qwc-base-db:13
+FROM sourcepole/qwc-base-db:13
 
 # Set ALEMBIC_VERSION to force git pull of qwc-config-db repo
 # used by run-migrations.sh script
