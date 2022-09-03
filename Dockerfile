@@ -5,11 +5,18 @@
 # - config-db is set up
 # - demo data are in the DB
 #
-FROM sourcepole/qwc-base-db:v2022.04.26
+FROM sourcepole/qwc-base-db:v2022.09.03
 
-# Set ALEMBIC_VERSION to force git pull of qwc-config-db repo
-# used by run-migrations.sh script
-ARG ALEMBIC_VERSION=head
+
+# copy demo connection service for migrations
+COPY pg_service_demo-data.conf /tmp/.pg_service.conf
+
+# add demo data to container
+RUN curl -o /tmp/demo_geodata.gpkg -L https://github.com/pka/mvt-benchmark/raw/master/data/mvtbench.gpkg
+
+# script to insert demo data into DB
+COPY setup-demo-data.sh /docker-entrypoint-initdb.d/2_setup-demo-data.sh
+
 
 # After running all the /docker-entrypoint-initdb.d scripts we just
 # want to terminate at build time and *not* to run postgres.
