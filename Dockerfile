@@ -16,6 +16,7 @@ RUN curl -o /tmp/demo_geodata.gpkg -L https://github.com/pka/mvt-benchmark/raw/m
 
 # script to insert demo data into DB
 COPY setup-demo-data.sh /docker-entrypoint-initdb.d/2_setup-demo-data.sh
+RUN chmod +x /docker-entrypoint-initdb.d/2_setup-demo-data.sh
 
 
 # After running all the /docker-entrypoint-initdb.d scripts we just
