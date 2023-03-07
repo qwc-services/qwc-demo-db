@@ -20,7 +20,8 @@ jobs:
           fi
 
       - name: Build and publish docker image
-        uses: elgohr/Publish-Docker-Github-Action@2.12
+        uses: elgohr/Publish-Docker-Github-Action@v5
+        if: github.event_name != 'pull_request'
         env:
           ALEMBIC_VERSION: 0352a94313d6
         with:
