@@ -2,40 +2,86 @@
 
 help() {
    echo 'usage: setup-demo-data.sh [--host=HOST]'
+   echo '                          [--port=PORT]'
    echo '                          [--username=USERNAME]'
    echo '                          [--password=PASSWORD]'
    echo '                          [--grants-are-setup-externally]'
    echo '                          [--dbname=DBNAME]'
+   echo '       setup-demo-data.sh [--pgservice_demo_db=PGSERVICE --pgservice_config_db=PGSERVICE] '
    echo '       setup-demo-data.sh --help'
    echo
    exit 1
 }
 
 # defaults
-DBNAME=qwc_demo
-USERNAME=qwc_admin
-PASSWORD=qwc_admin
-HOST=
+#
+# they get unexported below if --pgservice is set
+#
+export PGDATABASE=qwc_demo
+export PGUSER=qwc_admin
+export PGPASSWORD=qwc_admin
+export PGHOST=
+export PGPORT=5432
 GRANTS_ARE_SETUP_EXTERNALLY=no
+
+USE_PGSERVICE=no
+
+PGSERVICE_DEMO_DB=
+PGSERVICE_CONFIG_DB=
 
 # parse option parameters
 while [ "$1" != "" ]; do
-  [  "$1" == "--help"      ] && help
-  [[ "$1" =~ ^--dbname=   ]] && DBNAME=$(   echo "$1" | sed 's/--dbname=//'   )
-  [[ "$1" =~ ^--username= ]] && USERNAME=$( echo "$1" | sed 's/--username=//' )
-  [[ "$1" =~ ^--password= ]] && PASSWORD=$( echo "$1" | sed 's/--password=//' )
-  [[ "$1" =~ ^--host=     ]] && HOST="host=$(     echo "$1" | sed 's/--host=//' )"
+  [  "$1" == "--help"       ] && help
+  [[ "$1" =~ ^--dbname=    ]] && export PGDATABASE=$(  echo "$1" | sed 's/--dbname=//'    )
+  [[ "$1" =~ ^--username=  ]] && export PGUSER=$(      echo "$1" | sed 's/--username=//'  )
+  [[ "$1" =~ ^--password=  ]] && export PGPASSWORD=$(  echo "$1" | sed 's/--password=//'  )
+  [[ "$1" =~ ^--host=      ]] && export PGHOST=$(      echo "$1" | sed 's/--host=//'      )
+  [[ "$1" =~ ^--port=      ]] && export PGPORT=$(      echo "$1" | sed 's/--port=//'      )
+
   [[ "$1" =~ ^--grants-are-setup-externally ]] && GRANTS_ARE_SETUP_EXTERNALLY=yes
+
+  [[ "$1" =~ ^--pgservice_demo_db=   ]] && PGSERVICE_DEMO_DB=$(   echo "$1" | sed 's/--pgservice_demo_db=//'   )
+  [[ "$1" =~ ^--pgservice_config_db= ]] && PGSERVICE_CONFIG_DB=$( echo "$1" | sed 's/--pgservice_config_db=//' )
   shift
 done
 
-set -e
+[ "${PGSERVICE_DEMO_DB}${PGSERVICE_CONFIG_DB}" != "" ] && USE_PGSERVICE=yes
+
+if [ "$USE_PGSERVICE" == "yes" ]; then
+  [ "$PGSERVICE_DEMO_DB"   == "" ] && echo "please set --pgservice_demo_db"   >&2 && exit 2
+  [ "$PGSERVICE_CONFIG_DB" == "" ] && echo "please set --pgservice_config_db" >&2 && exit 2
+
+  export -n PGDATABASE
+  export -n PGUSER
+  export -n PGPASSWORD
+  export -n PGHOST
+  export -n PGPORT
+fi
+
+set -ex
 
 # import demo data into GeoDB
-ogr2ogr -f PostgreSQL PG:"dbname=$DBNAME user=$USERNAME password=$PASSWORD $HOST" -lco SCHEMA=qwc_geodb -lco GEOMETRY_NAME=wkb_geometry /tmp/demo_geodata.gpkg
+if [ "$USE_PGSERVICE" == "yes" ]; then
+
+  OGR_PG_CONNECTION="service=$PGSERVICE_DEMO_DB"
+  DEMO_DB_CONNECTION="service=$PGSERVICE_DEMO_DB"
+  CONFIG_DB_CONNECTION="service=$PGSERVICE_CONFIG_DB"
+else # "$USE_PGSERVICE" == "no"
+
+  OGR_PG_CONNECTION="dbname=$PGDATABASE user=$PGUSER password=$PGPASSWORD port=$PGPORT $PGHOST"
+  # Use credentials from ENV variables
+  DEMO_DB_CONNECTION="$PGDATABASE"
+  CONFIG_DB_CONNECTION="$PGDATABASE"
+fi
+
+ogr2ogr -f PostgreSQL PG:"$OGR_PG_CONNECTION" \
+        -lco SCHEMA=qwc_geodb \
+        -lco GEOMETRY_NAME=wkb_geometry \
+        -lco OVERWRITE=YES \
+        /tmp/demo_geodata.gpkg
 
 # create view for fulltext search
-psql -v ON_ERROR_STOP=1 --username $USERNAME -d $DBNAME <<-EOSQL
+psql -v ON_ERROR_STOP=1 $DEMO_DB_CONNECTION <<-EOSQL
 CREATE OR REPLACE VIEW qwc_geodb.search_v AS
     SELECT
         'ne_10m_admin_0_countries'::text AS subclass,
@@ -52,7 +98,7 @@ CREATE OR REPLACE VIEW qwc_geodb.search_v AS
 EOSQL
 
 # create demo tables and features for editing
-psql -v ON_ERROR_STOP=1 --username $USERNAME -d $DBNAME <<-EOSQL
+psql -v ON_ERROR_STOP=1 $DEMO_DB_CONNECTION <<-EOSQL
     CREATE TABLE qwc_geodb.edit_points
     (
       id serial,
@@ -124,7 +170,7 @@ psql -v ON_ERROR_STOP=1 --username $USERNAME -d $DBNAME <<-EOSQL
 EOSQL
 
 if [ "$GRANTS_ARE_SETUP_EXTERNALLY" == "no" ]; then
-  psql -v ON_ERROR_STOP=1 --username $USERNAME -d $DBNAME <<-EOSQL
+  psql -v ON_ERROR_STOP=1 $DEMO_DB_CONNECTION <<-EOSQL
     GRANT SELECT ON ALL TABLES IN SCHEMA qwc_geodb TO qgis_server;
     GRANT SELECT ON ALL SEQUENCES IN SCHEMA qwc_geodb TO qgis_server;
     GRANT SELECT ON ALL TABLES IN SCHEMA qwc_geodb TO qwc_service;
@@ -137,7 +183,7 @@ fi
 # insert demo records into ConfigDB
 # >>> from werkzeug.security import generate_password_hash
 # >>> print(generate_password_hash('demo'))
-psql -v ON_ERROR_STOP=1 --username $USERNAME -d $DBNAME <<-EOSQL
+psql -v ON_ERROR_STOP=1 $CONFIG_DB_CONNECTION <<-EOSQL
   -- demo role and user (password: 'demo')
   INSERT INTO qwc_config.roles (name, description)
     VALUES ('demo', 'Demo role');
@@ -168,7 +214,7 @@ psql -v ON_ERROR_STOP=1 --username $USERNAME -d $DBNAME <<-EOSQL
 EOSQL
 
 # add demo user info columns
-psql -v ON_ERROR_STOP=1 --username $USERNAME -d $DBNAME <<-EOSQL
+psql -v ON_ERROR_STOP=1 $CONFIG_DB_CONNECTION <<-EOSQL
   ALTER TABLE qwc_config.user_infos
     ADD COLUMN surname character varying NOT NULL;
   ALTER TABLE qwc_config.user_infos
@@ -181,6 +227,6 @@ psql -v ON_ERROR_STOP=1 --username $USERNAME -d $DBNAME <<-EOSQL
     ADD COLUMN city character varying;
 EOSQL
 
-psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" -d $DBNAME <<-EOSQL
+psql -v ON_ERROR_STOP=1 $DEMO_DB_CONNECTION --username "$POSTGRES_USER" <<-EOSQL
   VACUUM FULL;
 EOSQL
