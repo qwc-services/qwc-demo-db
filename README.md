@@ -1,14 +1,4 @@
-[![CI](https://github.com/qwc-services/qwc-demo-db/actions/workflows/qwc-demo-db.yml/badge.svg)](https://github.com/qwc-services/qwc-demo-db/actions)
-[![docker](https://img.shields.io/docker/v/sourcepole/qwc-demo-db?label=qwc-demo-db%20image&sort=semver)](https://hub.docker.com/r/sourcepole/qwc-demo-db)
+**This repository is obsolete and archived, the demo DB setup is now handled by [`setup-demo-data.sh`](https://github.com/qwc-services/qwc-docker/blob/master/volumes/demo-data/setup-demo-data.sh) in `qwc-docker`.**
 
+[Old README](README.old.md)
 
-QWC demo DB
-===========
-
-Demo database for QWC docker.
-
-Understanding
--------------
-
-See the https://github.com/qwc-services/qwc-base-db project
-upon which this project and docker container image is based.
